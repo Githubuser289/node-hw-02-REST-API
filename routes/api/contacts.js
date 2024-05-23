@@ -1,6 +1,5 @@
 const express = require("express");
-const { v4: uuidv4 } = require("uuid");
-const contactsServices = require("../../models/contacts.js");
+const contactsServices = require("../../controller/contactsController");
 const router = express.Router();
 
 const Joi = require("joi");
@@ -10,7 +9,10 @@ const schema = Joi.object({
     .email({ minDomainSegments: 2, tlds: { allow: ["com", "net", "ro"] } })
     .required(),
   phone: Joi.string().alphanum().min(10).max(20).required(),
+  favorite: Joi.boolean(),
 });
+
+const favoriteSchema = Joi.object({ favorite: Joi.boolean() });
 
 const STATUS_CODES = {
   success: 200,
@@ -35,19 +37,27 @@ router.get("/", async (req, res, next) => {
 
 /* GET localhost:3000/api/contacts/:contactId */
 router.get("/:contactId", async (req, res, next) => {
-  try {
-    const contact = await contactsServices.getContactById(req.params.contactId);
-    if (contact) {
-      res.status(STATUS_CODES.success).json({
-        data: contact,
-      });
-    } else {
-      res.status(STATUS_CODES.notFound).json({
-        message: "The contact was not found.",
-      });
+  if (req.params.contactId.length !== 24) {
+    res.status(STATUS_CODES.badRequest).json({
+      message: "ID must have 24 alphanumeric characters",
+    });
+  } else {
+    try {
+      const contact = await contactsServices.getContactById(
+        req.params.contactId
+      );
+      if (contact) {
+        res.status(STATUS_CODES.success).json({
+          data: contact,
+        });
+      } else {
+        res.status(STATUS_CODES.notFound).json({
+          message: "The contact was not found.",
+        });
+      }
+    } catch (error) {
+      respondWithError(res, error);
     }
-  } catch (error) {
-    respondWithError(res, error);
   }
 });
 
@@ -67,14 +77,10 @@ router.post("/", async (req, res, next) => {
         message: message,
       });
     } else {
-      const contact = {
-        id: uuidv4(),
-        ...req.body,
-      };
-      await contactsServices.addContact(contact);
+      await contactsServices.addContact(req.body);
       res.status(STATUS_CODES.created).json({
         message: `The contact has been successfully added.`,
-        data: contact,
+        data: req.body,
       });
     }
   } catch (error) {
@@ -124,14 +130,51 @@ router.put("/:contactId", async (req, res, next) => {
         res.status(STATUS_CODES.notFound).json({
           message: "The contact was not found.",
         });
+      } else {
+        res.status(STATUS_CODES.success).json({
+          message: `The contact has been successfully updated.`,
+          data: result,
+        });
       }
-      res.status(STATUS_CODES.success).json({
-        message: `The contact has been successfully updated.`,
-        data: result,
-      });
     }
   } catch (error) {
     respondWithError(res, error);
+  }
+});
+
+/* PATCH /api/contacts/:contactId/favorite */
+router.patch("/:contactId/favorite", async (req, res, next) => {
+  if (JSON.stringify(req.body) === "{}") {
+    res.status(STATUS_CODES.badRequest).json({
+      data: "Missing field favorite",
+    });
+  } else {
+    try {
+      const { error, value } = favoriteSchema.validate(req.body, {
+        abortEarly: false,
+      });
+      if (error) {
+        res.status(STATUS_CODES.badRequest).json({
+          message: error.message,
+        });
+      } else {
+        const result = await contactsServices.updateStatusContact(
+          req.params.contactId,
+          req.body
+        );
+        if (!result) {
+          res.status(STATUS_CODES.notFound).json({
+            message: "The contact was not found.",
+          });
+        } else {
+          res.status(STATUS_CODES.success).json({
+            message: `The contact has been successfully patched.`,
+          });
+        }
+      }
+    } catch (error) {
+      respondWithError(res, error);
+    }
   }
 });
 

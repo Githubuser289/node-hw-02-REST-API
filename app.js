@@ -3,10 +3,12 @@ const logger = require("morgan");
 const cors = require("cors");
 
 const contactsRouter = require("./routes/api/contacts");
+const connectToDb = require("./utils/connectToDb");
 
 const app = express();
-
 const formatsLogger = app.get("env") === "development" ? "dev" : "short";
+
+connectToDb();
 
 app.use(logger(formatsLogger));
 app.use(cors());
