@@ -1,6 +1,9 @@
 const express = require("express");
-const contactsServices = require("../../controller/contactsController");
 const router = express.Router();
+require("../../passport.js");
+const checkAuth = require("../../middleware/checkAuth.js");
+const contactsServices = require("../../controller/contactsController");
+const { STATUS_CODES } = require("../../utils/statusCodes.js");
 
 const Joi = require("joi");
 const schema = Joi.object({
@@ -14,17 +17,8 @@ const schema = Joi.object({
 
 const favoriteSchema = Joi.object({ favorite: Joi.boolean() });
 
-const STATUS_CODES = {
-  success: 200,
-  created: 201,
-  deleted: 204,
-  badRequest: 400,
-  notFound: 404,
-  error: 500,
-};
-
 /* GET localhost:3000/api/contacts */
-router.get("/", async (req, res, next) => {
+router.get("/", checkAuth, async (req, res, next) => {
   try {
     const contactsList = await contactsServices.listContacts();
     res.status(STATUS_CODES.success).json({
