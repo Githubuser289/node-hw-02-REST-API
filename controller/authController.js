@@ -4,6 +4,7 @@ const dotenv = require("dotenv");
 const passport = require("passport");
 require("../passport.js");
 const User = require("../models/user");
+const gravatar = require("gravatar");
 
 dotenv.config();
 const secret = process.env.TOKEN_SECRET;
@@ -12,9 +13,12 @@ async function signup(data) {
   const saltRounds = 10;
   const encryptedPassword = await bcrypt.hash(data.password, saltRounds);
 
+  const userAvatar = gravatar.url(data.email);
+  console.log("gravatar  ", userAvatar);
   const newUser = new User({
     email: data.email,
     password: encryptedPassword,
+    avatarURL: userAvatar,
   });
 
   return User.create(newUser);

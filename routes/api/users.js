@@ -8,6 +8,7 @@ const User = require("../../models/user");
 const checkAuth = require("../../middleware/checkAuth.js");
 const AuthController = require("../../controller/authController.js");
 const { STATUS_CODES } = require("../../utils/statusCodes.js");
+const FileController = require("../../controller/fileController.js");
 
 const Joi = require("joi");
 const userSchema = Joi.object({
@@ -39,13 +40,7 @@ router.post("/signup", async (req, res) => {
         .json({ message: "Email in use" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const newUser = await User.create({
-      email,
-      password: hashedPassword,
-    });
-
+    const newUser = await AuthController.signup({ email, password });
     res.status(STATUS_CODES.created).json({
       user: {
         email: newUser.email,
@@ -95,7 +90,7 @@ router.post("/login", async (req, res, next) => {
   }
 });
 
-/* GET localhost:3000/api//users/logout */
+/* GET localhost:3000/api/users/logout */
 router.get("/logout", checkAuth, async (req, res, next) => {
   try {
     const header = req.get("authorization");
@@ -125,7 +120,7 @@ router.get("/logout", checkAuth, async (req, res, next) => {
   }
 });
 
-/* GET localhost:3000/api//users/current */
+/* GET localhost:3000/api/users/current */
 router.get("/current", checkAuth, async (req, res, next) => {
   try {
     const header = req.get("authorization");
@@ -155,6 +150,22 @@ router.get("/current", checkAuth, async (req, res, next) => {
     respondWithError(res, error, STATUS_CODES.error);
   }
 });
+
+/* PATCH localhost:3000/api/users/avatars */
+router.patch(
+  "/avatars",
+  [checkAuth, FileController.uploadFile],
+  async (req, res, next) => {
+    try {
+      const response = await FileController.processAvatar(req, res);
+      res.status(STATUS_CODES.success).json(response);
+    } catch (error) {
+      res
+        .status(STATUS_CODES.unauthorized)
+        .json({ message: "Not authorized", error: error });
+    }
+  }
+);
 
 /**
  * Handles Error Cases
