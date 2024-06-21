@@ -9,6 +9,7 @@ const checkAuth = require("../../middleware/checkAuth.js");
 const AuthController = require("../../controller/authController.js");
 const { STATUS_CODES } = require("../../utils/statusCodes.js");
 const FileController = require("../../controller/fileController.js");
+const sendEmailWithSendGrid = require("../../utils/sendEmail.js");
 
 const Joi = require("joi");
 const userSchema = Joi.object({
@@ -19,6 +20,10 @@ const userSchema = Joi.object({
 const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().min(6).required(),
+});
+
+const emailSchema = Joi.object({
+  email: Joi.string().email().required(),
 });
 
 /* POST localhost:3000/api/users/signup */
@@ -166,6 +171,67 @@ router.patch(
     }
   }
 );
+
+/* GET  localhost:3000/api/users/verify/:verificationToken */
+router.get("/verify/:verificationToken", async (req, res) => {
+  try {
+    const { verificationToken } = req.params;
+
+    const user = await User.findOne({ verificationToken });
+
+    if (!user) {
+      return res
+        .status(STATUS_CODES.notFound)
+        .json({ message: "User not found" });
+    }
+
+    await User.findOneAndUpdate(
+      { verificationToken: verificationToken },
+      { verificationToken: "", verify: true }
+    );
+
+    res
+      .status(STATUS_CODES.success)
+      .json({ message: "Verification successful" });
+  } catch (error) {
+    respondWithError(res, error, STATUS_CODES.error);
+  }
+});
+
+// POST localhost:3000/api/users/verify/
+router.post("/verify", async (req, res) => {
+  try {
+    const isEmail = req.body?.email;
+    if (!isEmail) {
+      throw new Error("missing required field email");
+    }
+
+    const { error, value } = emailSchema.validate(req.body);
+    if (error) {
+      return res
+        .status(STATUS_CODES.badRequest)
+        .json({ message: error.details[0].message });
+    }
+    const { email } = value;
+    const user = await User.findOne({ email });
+    if (!user) {
+      throw new Error("The email is incorrect");
+    }
+    if (user.verify) {
+      return res
+        .status(STATUS_CODES.badRequest)
+        .json({ message: "Verification has already been passed" });
+    }
+
+    sendEmailWithSendGrid(email, user.verificationToken, 2);
+
+    res.status(STATUS_CODES.success).json({
+      message: "Verification email sent",
+    });
+  } catch (error) {
+    respondWithError(res, error, STATUS_CODES.error);
+  }
+});
 
 /**
  * Handles Error Cases
